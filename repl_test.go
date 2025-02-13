@@ -12,13 +12,13 @@ func TestCleanInput(t *testing.T) {
 			expected: []string{"hello", "world"},
 		}, {
 			input:    "All   your bases    are  belong to   us  ",
-			expected: []string{"All", "your", "bases", "are", "belong", "to", "us"},
+			expected: []string{"all", "your", "bases", "are", "belong", "to", "us"},
 		}, {
 			input:    "  Pain  is     the mindkiller",
-			expected: []string{"Pain", "is", "the", "mindkiller"},
+			expected: []string{"pain", "is", "the", "mindkiller"},
 		}, {
 			input:    "There    is  no   spoon",
-			expected: []string{"There", "is", "no", "spoon"},
+			expected: []string{"there", "is", "no", "spoon"},
 		},
 	}
 
