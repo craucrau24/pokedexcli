@@ -19,16 +19,20 @@ type cliCommand struct {
 
 func (r *cliRegistry) init() {
 	r.commands = make(map[string]cliCommand)
-	r.commands["exit"] = cliCommand{
+	r.addCommand(cliCommand{
 		name:     "exit",
 		desc:     "Exit the Pokedex",
 		callback: commandExit,
-	}
-	r.commands["help"] = cliCommand{
+	})
+	r.addCommand(cliCommand{
 		name:     "help",
 		desc:     "Display a help message",
 		callback: r.commandHelp,
-	}
+	})
+}
+
+func (r *cliRegistry) addCommand(cmd cliCommand) {
+	r.commands[cmd.name] = cmd
 }
 
 func (r *cliRegistry) commandHelp() error {
