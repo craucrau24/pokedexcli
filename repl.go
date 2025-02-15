@@ -4,9 +4,13 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
+	"time"
+
+	"github.com/craucrau24/pokedexcli/internal/pokecache"
 )
 
 type config struct {
@@ -18,6 +22,7 @@ type config struct {
 type cliRegistry struct {
 	commands map[string]cliCommand
 	cfg      config
+	cache    *pokecache.Cache
 }
 
 type cliCommand struct {
@@ -27,6 +32,7 @@ type cliCommand struct {
 }
 
 func (r *cliRegistry) init() {
+	r.cache = pokecache.NewCache(5 * time.Second)
 	r.commands = make(map[string]cliCommand)
 	r.addCommand(cliCommand{
 		name:     "exit",
@@ -41,12 +47,12 @@ func (r *cliRegistry) init() {
 	r.addCommand(cliCommand{
 		name:     "map",
 		desc:     "Retrieve area locations. Subsequent calls paginate.",
-		callback: commandMap,
+		callback: r.commandMap,
 	})
 	r.addCommand(cliCommand{
 		name:     "mapb",
 		desc:     "Retrieve area locations. Backward pagination.",
-		callback: commandMapb,
+		callback: r.commandMapb,
 	})
 }
 
@@ -78,7 +84,7 @@ type MapResultsDTO struct {
 	Items    []MapItemSummary `json:"results"`
 }
 
-func commandMap(cfg *config) error {
+func (c *cliRegistry) commandMap(cfg *config) error {
 	const endPoint = "location-area"
 	var url string
 	if endPoint != cfg.endPoint {
@@ -86,15 +92,23 @@ func commandMap(cfg *config) error {
 	} else {
 		url = cfg.next
 	}
-	res, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("error sending map request: %w", err)
+	data, ok := c.cache.Get(url)
+	if !ok {
+		res, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("error sending map request: %w", err)
+		}
+		defer res.Body.Close()
+
+		data, err = io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("error reading response body: %w", err)
+		}
+		c.cache.Add(url, data)
 	}
-	defer res.Body.Close()
 
 	var results MapResultsDTO
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&results); err != nil {
+	if err := json.Unmarshal(data, &results); err != nil {
 		return fmt.Errorf("error decoding map response: %w", err)
 	}
 	cfg.endPoint = endPoint
@@ -107,7 +121,7 @@ func commandMap(cfg *config) error {
 	return nil
 }
 
-func commandMapb(cfg *config) error {
+func (c *cliRegistry) commandMapb(cfg *config) error {
 	const endPoint = "location-area"
 	var url string
 	if endPoint != cfg.endPoint {
@@ -119,15 +133,23 @@ func commandMapb(cfg *config) error {
 	}
 	url = cfg.previous
 
-	res, err := http.Get(url)
-	if err != nil {
-		return fmt.Errorf("error sending map request: %w", err)
+	data, ok := c.cache.Get(url)
+	if !ok {
+		res, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("error sending map request: %w", err)
+		}
+		defer res.Body.Close()
+
+		data, err = io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("error reading response body: %w", err)
+		}
+		c.cache.Add(url, data)
 	}
-	defer res.Body.Close()
 
 	var results MapResultsDTO
-	decoder := json.NewDecoder(res.Body)
-	if err := decoder.Decode(&results); err != nil {
+	if err := json.Unmarshal(data, &results); err != nil {
 		return fmt.Errorf("error decoding map response: %w", err)
 	}
 	cfg.endPoint = endPoint
