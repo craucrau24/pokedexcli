@@ -33,3 +33,23 @@ func (c *Cache) Get(key string) ([]byte, bool) {
 	}
 	return entry.val, true
 }
+
+func (c *Cache) reapLoop(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	for (t := <- ticker.C) {
+		c.mutex.Lock()
+		defer c.mutex.Unlock()
+
+		var toRemove []string{}
+		for key, val := range c.entries {
+			if val.createdAt < t - interval {
+				toRemove = append(toRemove, key)
+			}
+		}
+		for _, key := range(toRemove) {
+			delete(c.entries, key)
+		}
+	}
+}
