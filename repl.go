@@ -28,7 +28,7 @@ type cliRegistry struct {
 type cliCommand struct {
 	name     string
 	desc     string
-	callback func(cfg *config) error
+	callback func(args []string, cfg *config) error
 }
 
 func (r *cliRegistry) init() {
@@ -54,13 +54,18 @@ func (r *cliRegistry) init() {
 		desc:     "Retrieve area locations. Backward pagination.",
 		callback: r.commandMapb,
 	})
+	r.addCommand(cliCommand{
+		name:     "explore",
+		desc:     "Explore area location. Retrieve pokemon list in given location.",
+		callback: r.commandExplore,
+	})
 }
 
 func (r *cliRegistry) addCommand(cmd cliCommand) {
 	r.commands[cmd.name] = cmd
 }
 
-func (r *cliRegistry) commandHelp(cfg *config) error {
+func (r *cliRegistry) commandHelp(args []string, cfg *config) error {
 	fmt.Println("Welcome to the Pokedex!")
 	fmt.Println("Usage: ")
 	fmt.Println("")
@@ -84,7 +89,7 @@ type MapResultsDTO struct {
 	Items    []MapItemSummary `json:"results"`
 }
 
-func (c *cliRegistry) commandMap(cfg *config) error {
+func (c *cliRegistry) commandMap(args []string, cfg *config) error {
 	const endPoint = "location-area"
 	var url string
 	if endPoint != cfg.endPoint {
@@ -121,7 +126,7 @@ func (c *cliRegistry) commandMap(cfg *config) error {
 	return nil
 }
 
-func (c *cliRegistry) commandMapb(cfg *config) error {
+func (c *cliRegistry) commandMapb(args []string, cfg *config) error {
 	const endPoint = "location-area"
 	var url string
 	if endPoint != cfg.endPoint {
@@ -162,18 +167,63 @@ func (c *cliRegistry) commandMapb(cfg *config) error {
 	return nil
 }
 
-func commandExit(cfg *config) error {
+type PokemonDTO struct {
+	Name string `json:"name"`
+}
+
+type PokemonEncounterDTO struct {
+	Pokemon PokemonDTO `json:"pokemon"`
+}
+
+type LocationAreaDTO struct {
+	Encounters []PokemonEncounterDTO `json:"pokemon_encounters"`
+}
+
+func (c *cliRegistry) commandExplore(args []string, cfg *config) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing argument: name of location area")
+	}
+	name := args[0]
+	url := "https://pokeapi.co/api/v2/location-area/" + name
+
+	data, ok := c.cache.Get(url)
+	if !ok {
+		res, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("error sending explore request: %w", err)
+		}
+		defer res.Body.Close()
+
+		data, err = io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("error reading response body: %w", err)
+		}
+		c.cache.Add(url, data)
+	}
+
+	var location LocationAreaDTO
+	if err := json.Unmarshal(data, &location); err != nil {
+		return fmt.Errorf("error decoding explore response: %w", err)
+	}
+	for _, encounter := range location.Encounters {
+		fmt.Println(encounter.Pokemon.Name)
+	}
+
+	return nil
+}
+
+func commandExit(args []string, cfg *config) error {
 	fmt.Println("Closing the Pokedex... Goodbye!")
 	os.Exit(0)
 	return nil
 }
 
-func (r *cliRegistry) execute(cmd string) error {
+func (r *cliRegistry) execute(cmd string, args []string) error {
 	cliCmd, ok := r.commands[cmd]
 	if !ok {
 		return fmt.Errorf("unknown command")
 	}
-	return cliCmd.callback(&r.cfg)
+	return cliCmd.callback(args, &r.cfg)
 }
 
 func cleanInput(text string) []string {
@@ -190,7 +240,7 @@ func inputLoop() {
 	for scanner.Scan() {
 		line := scanner.Text()
 		words := cleanInput(line)
-		err := registry.execute(words[0])
+		err := registry.execute(words[0], words[1:])
 		if err != nil {
 			fmt.Println(err)
 			fmt.Print("Pokedex > ")
