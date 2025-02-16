@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/craucrau24/pokedexcli/internal/pokecache"
+	"github.com/craucrau24/pokedexcli/internal/pokemon"
 )
 
 type config struct {
@@ -23,6 +24,7 @@ type cliRegistry struct {
 	commands map[string]cliCommand
 	cfg      config
 	cache    *pokecache.Cache
+	pokedex  pokemon.Pokedex
 }
 
 type cliCommand struct {
@@ -32,7 +34,8 @@ type cliCommand struct {
 }
 
 func (r *cliRegistry) init() {
-	r.cache = pokecache.NewCache(5 * time.Second)
+	r.pokedex = pokemon.NewPokedex()
+	r.cache = pokecache.NewCache(10 * 60 * time.Second)
 	r.commands = make(map[string]cliCommand)
 	r.addCommand(cliCommand{
 		name:     "exit",
@@ -58,6 +61,11 @@ func (r *cliRegistry) init() {
 		name:     "explore",
 		desc:     "Explore area location. Retrieve pokemon list in given location.",
 		callback: r.commandExplore,
+	})
+	r.addCommand(cliCommand{
+		name:     "catch",
+		desc:     "Attempt to catch given pokemon",
+		callback: r.commandCatch,
 	})
 }
 
@@ -207,6 +215,44 @@ func (c *cliRegistry) commandExplore(args []string, cfg *config) error {
 	}
 	for _, encounter := range location.Encounters {
 		fmt.Println(encounter.Pokemon.Name)
+	}
+
+	return nil
+}
+
+func (c *cliRegistry) commandCatch(args []string, cfg *config) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing argument: name of pokemon")
+	}
+	name := args[0]
+	fmt.Printf("Throwing a Pokeball at %s...\n", name)
+
+	url := "https://pokeapi.co/api/v2/pokemon/" + name
+
+	data, ok := c.cache.Get(url)
+	if !ok {
+		res, err := http.Get(url)
+		if err != nil {
+			return fmt.Errorf("error sending pokemon request: %w", err)
+		}
+		defer res.Body.Close()
+
+		data, err = io.ReadAll(res.Body)
+		if err != nil {
+			return fmt.Errorf("error reading response body: %w", err)
+		}
+		c.cache.Add(url, data)
+	}
+
+	pokemon, err := pokemon.JsonToPokemon(data)
+	if err != nil {
+		return err
+	}
+
+	if c.pokedex.TryCatch(pokemon) {
+		fmt.Printf("%s was caught!\n", pokemon.Name)
+	} else {
+		fmt.Printf("%s escaped!\n", pokemon.Name)
 	}
 
 	return nil
