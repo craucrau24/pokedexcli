@@ -98,3 +98,8 @@ func (p *Pokedex) TryCatch(pokemon Pokemon) bool {
 	}
 	return false
 }
+
+func (p *Pokedex) Get(name string) (Pokemon, bool) {
+	pokemon, ok := p.caught[name]
+	return pokemon, ok
+}

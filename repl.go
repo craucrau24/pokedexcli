@@ -67,6 +67,11 @@ func (r *cliRegistry) init() {
 		desc:     "Attempt to catch given pokemon",
 		callback: r.commandCatch,
 	})
+	r.addCommand(cliCommand{
+		name:     "inspect",
+		desc:     "Inspect given pokemon. Pokemon must have been caught before.",
+		callback: r.commandInspect,
+	})
 }
 
 func (r *cliRegistry) addCommand(cmd cliCommand) {
@@ -253,6 +258,31 @@ func (c *cliRegistry) commandCatch(args []string, cfg *config) error {
 		fmt.Printf("%s was caught!\n", pokemon.Name)
 	} else {
 		fmt.Printf("%s escaped!\n", pokemon.Name)
+	}
+
+	return nil
+}
+
+func (c *cliRegistry) commandInspect(args []string, cfg *config) error {
+	if len(args) == 0 {
+		return fmt.Errorf("missing argument: name of pokemon")
+	}
+	name := args[0]
+	pokemon, ok := c.pokedex.Get(name)
+	if !ok {
+		fmt.Println("you have not caught that pokemon")
+		return nil
+	}
+	fmt.Println("Name: ", pokemon.Name)
+	fmt.Println("Height: ", pokemon.Height)
+	fmt.Println("Weight: ", pokemon.Weight)
+	fmt.Println("Stats:")
+	for _, stat := range pokemon.Stats {
+		fmt.Printf("  -%s: %d\n", stat.Name, stat.BaseStat)
+	}
+	fmt.Println("Types:")
+	for _, typ := range pokemon.Types {
+		fmt.Printf("  -%s\n", typ)
 	}
 
 	return nil
