@@ -3,7 +3,9 @@ package pokemon
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"math/rand"
+	"slices"
 	"time"
 )
 
@@ -102,4 +104,8 @@ func (p *Pokedex) TryCatch(pokemon Pokemon) bool {
 func (p *Pokedex) Get(name string) (Pokemon, bool) {
 	pokemon, ok := p.caught[name]
 	return pokemon, ok
+}
+
+func (p *Pokedex) List() []string {
+	return slices.Collect(maps.Keys(p.caught))
 }

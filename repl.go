@@ -72,6 +72,11 @@ func (r *cliRegistry) init() {
 		desc:     "Inspect given pokemon. Pokemon must have been caught before.",
 		callback: r.commandInspect,
 	})
+	r.addCommand(cliCommand{
+		name:     "pokedex",
+		desc:     "List all caught pokemons",
+		callback: r.commandPokedex,
+	})
 }
 
 func (r *cliRegistry) addCommand(cmd cliCommand) {
@@ -285,6 +290,13 @@ func (c *cliRegistry) commandInspect(args []string, cfg *config) error {
 		fmt.Printf("  -%s\n", typ)
 	}
 
+	return nil
+}
+
+func (c *cliRegistry) commandPokedex(args []string, cfg *config) error {
+	for _, name := range c.pokedex.List() {
+		fmt.Println(" - ", name)
+	}
 	return nil
 }
 
